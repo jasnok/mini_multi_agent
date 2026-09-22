@@ -1,0 +1,1 @@
+"""Orchestration Pattern Explorer application."""

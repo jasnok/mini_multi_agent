@@ -1,0 +1,15 @@
+LABS = {
+    "01": {"title": "Single AI Agent", "group": "1. Single과 Multi 비교", "pattern": "single_agent", "real_llm": True, "question": "조건이 늘어나면 반드시 Agent를 분리해야 할까요?", "scenario": "travel", "expected_calls": "LLM 1회 + Tool 5회"},
+    "02": {"title": "Independent Agents", "group": "1. Single과 Multi 비교", "pattern": "independent", "real_llm": True, "question": "Agent가 여러 개면 바로 Orchestration일까요?", "scenario": "travel", "expected_calls": "LLM 4회 + Tool 5회"},
+    "03": {"title": "Agent 분리 판단", "group": "2. Agent 분리 기준", "pattern": None, "real_llm": False, "question": "어떤 근거가 있을 때 역할을 분리할까요?", "scenario": "design", "expected_calls": "0회"},
+    "04": {"title": "아키텍처 비용 비교", "group": "2. Agent 분리 기준", "pattern": None, "real_llm": False, "question": "분리의 이점이 증가한 비용과 실패 지점보다 큰가요?", "scenario": "design", "expected_calls": "0회"},
+    "05": {"title": "Context와 Tool 권한", "group": "2. Agent 분리 기준", "pattern": None, "real_llm": False, "question": "Agent마다 필요한 정보와 Tool만 전달했나요?", "scenario": "design", "expected_calls": "0회"},
+    "06": {"title": "Orchestration 비교", "group": "3. Orchestration Pattern", "pattern": "orchestration_comparison", "real_llm": True, "question": "여러 Agent 실행과 Orchestration의 차이는 무엇일까요?", "scenario": "travel", "expected_calls": "4회"},
+    "07": {"title": "Sequential", "group": "3. Orchestration Pattern", "pattern": "sequential", "real_llm": True, "question": "앞 결과가 다음 입력이면 어떻게 실행할까요?", "scenario": "content", "expected_calls": "최대 3회"},
+    "08": {"title": "Parallel + Join", "group": "3. Orchestration Pattern", "pattern": "parallel_join", "real_llm": True, "question": "독립 결과를 언제 Join할 수 있을까요?", "scenario": "travel", "expected_calls": "최대 4회"},
+    "09": {"title": "Router", "group": "3. Orchestration Pattern", "pattern": "router", "real_llm": True, "question": "요청마다 필요한 Agent가 하나라면 어떻게 선택할까요?", "scenario": "support", "expected_calls": "2회"},
+    "10": {"title": "Supervisor–Worker", "group": "3. Orchestration Pattern", "pattern": "supervisor_worker", "real_llm": True, "question": "중간 결과를 보고 다음 Worker를 어떻게 선택할까요?", "scenario": "code", "expected_calls": "최대 6회"},
+    "11": {"title": "Handoff", "group": "3. Orchestration Pattern", "pattern": "handoff", "real_llm": True, "question": "업무 책임을 다른 Agent에게 어떻게 넘길까요?", "scenario": "support", "expected_calls": "2~3회"},
+    "12": {"title": "Evaluator–Reviser", "group": "3. Orchestration Pattern", "pattern": "evaluator_reviser", "real_llm": True, "question": "생성과 평가를 분리하고 반복을 누가 멈출까요?", "scenario": "content", "expected_calls": "2~10회"},
+    "13": {"title": "Provider Failover", "group": "4. 운영 확장", "pattern": "provider_failover", "real_llm": True, "question": "Primary 실패를 숨기지 않고 복구할 수 있을까요?", "scenario": "content", "expected_calls": "1~2회"},
+}
