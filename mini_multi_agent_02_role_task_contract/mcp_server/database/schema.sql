@@ -1,0 +1,12 @@
+CREATE SCHEMA IF NOT EXISTS mini_multi_agent_02;
+CREATE TABLE IF NOT EXISTS mini_multi_agent_02.places (place_id SERIAL PRIMARY KEY, city TEXT NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, transit_note TEXT NOT NULL, source_url TEXT NOT NULL, verified_at DATE NOT NULL, UNIQUE(city, name));
+CREATE TABLE IF NOT EXISTS mini_multi_agent_02.budget_reference (city TEXT PRIMARY KEY, transport INTEGER NOT NULL, lodging_per_night INTEGER NOT NULL, food_per_day INTEGER NOT NULL, source_note TEXT NOT NULL, source_url TEXT NOT NULL, verified_at DATE NOT NULL);
+ALTER TABLE mini_multi_agent_02.places ADD COLUMN IF NOT EXISTS indoor BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE mini_multi_agent_02.places ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT 'https://www.visitbusan.net/';
+ALTER TABLE mini_multi_agent_02.places ADD COLUMN IF NOT EXISTS verified_at DATE NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE mini_multi_agent_02.budget_reference ADD COLUMN IF NOT EXISTS source_note TEXT NOT NULL DEFAULT '교육용 보수적 예산 기준; 실행 전 실제 가격 확인 필요';
+ALTER TABLE mini_multi_agent_02.budget_reference ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT 'https://www.visitbusan.net/';
+ALTER TABLE mini_multi_agent_02.budget_reference ADD COLUMN IF NOT EXISTS verified_at DATE NOT NULL DEFAULT CURRENT_DATE;
+DELETE FROM mini_multi_agent_02.places WHERE city = '부산' AND name = '해운대 해변';
+INSERT INTO mini_multi_agent_02.places (city, name, category, transit_note, source_url, verified_at, indoor) VALUES ('부산','부산박물관','문화','도시철도 대연역 이용','https://museum.busan.go.kr/busan/index','2026-09-22',TRUE), ('부산','영화의전당','문화','도시철도 센텀시티역 이용','https://www.dureraum.org/','2026-09-22',TRUE), ('부산','해운대해수욕장','자연','도시철도 해운대역 이용','https://www.visitbusan.net/','2026-09-22',FALSE) ON CONFLICT (city, name) DO UPDATE SET category=EXCLUDED.category, transit_note=EXCLUDED.transit_note, source_url=EXCLUDED.source_url, verified_at=EXCLUDED.verified_at, indoor=EXCLUDED.indoor;
+INSERT INTO mini_multi_agent_02.budget_reference (city, transport, lodging_per_night, food_per_day, source_note, source_url, verified_at) VALUES ('부산',60000,110000,50000,'교육용 보수적 예산 기준; 실행 전 실제 가격 확인 필요','https://www.visitbusan.net/','2026-09-22') ON CONFLICT (city) DO UPDATE SET transport=EXCLUDED.transport, lodging_per_night=EXCLUDED.lodging_per_night, food_per_day=EXCLUDED.food_per_day, source_note=EXCLUDED.source_note, source_url=EXCLUDED.source_url, verified_at=EXCLUDED.verified_at;
