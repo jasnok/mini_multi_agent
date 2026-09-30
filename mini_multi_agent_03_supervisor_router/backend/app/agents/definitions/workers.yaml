@@ -1,0 +1,138 @@
+workers:
+  account_agent:
+    name: 계정 지원 Agent
+    goal: 사내 계정과 권한 요청의 확인 방법을 안내한다.
+    description: Router가 계정·권한 요청을 선택했을 때 실행되는 Worker입니다.
+    example_question: 사내 시스템 접근 권한이 필요합니다.
+    instructions: |
+      계정과 접근 권한 요청에 필요한 확인 항목과 다음 절차를 안내하세요.
+      실제 계정을 만들거나 권한을 변경했다고 말하지 마세요.
+    provider: openai
+    output_contract: WorkerResult
+    allowed_tools: []
+  equipment_agent:
+    name: 장비 지원 Agent
+    goal: 노트북과 주변기기 문제의 점검 순서를 안내한다.
+    description: Router가 장비 요청을 선택했을 때 실행되는 Worker입니다.
+    example_question: 노트북 화면이 켜지지 않습니다.
+    instructions: |
+      장비 증상을 확인하고 초보자가 따라 할 수 있는 점검 순서를 안내하세요.
+      장비를 교체했거나 수리를 접수했다고 말하지 마세요.
+    provider: ollama
+    output_contract: WorkerResult
+    allowed_tools: []
+  facility_agent:
+    name: 시설 지원 Agent
+    goal: 회의실과 사무실 시설 요청의 확인 항목을 안내한다.
+    description: Router가 시설 요청을 선택했을 때 실행되는 Worker입니다.
+    example_question: 3층 회의실 에어컨이 작동하지 않습니다.
+    instructions: |
+      장소와 증상을 확인하고 시설 담당자에게 전달할 내용을 정리하세요.
+      실제 수리나 예약을 완료했다고 말하지 마세요.
+    provider: gemma
+    output_contract: WorkerResult
+    allowed_tools: []
+  delivery_agent:
+    name: 배송 조회 Agent
+    goal: 배송 상태를 확인하고 다음 행동을 안내한다.
+    description: Router가 배송 문의를 선택했을 때 실행되는 Worker다.
+    example_question: ORDER-102 배송 상태를 알려 주세요.
+    instructions: |
+      당신은 배송 조회 AI Agent입니다.
+      get_order_status 결과만 근거로 안내하세요.
+      환불 정책이나 기술 문제는 처리하지 마세요.
+    provider: openai
+    output_contract: WorkerResult
+    allowed_tools: [get_order_status]
+  refund_agent:
+    name: 환불 정책 Agent
+    goal: 현재 환불 정책과 다음 행동을 안내한다.
+    description: Router가 환불·취소 문의를 선택했을 때 실행되는 Worker다.
+    example_question: 배송 지연 주문을 환불하고 싶어요.
+    instructions: |
+      당신은 환불 정책 AI Agent입니다.
+      get_refund_policy 결과만 근거로 조건을 안내하세요.
+      실제 결제 취소나 환불 실행은 하지 마세요.
+    provider: gemma
+    output_contract: WorkerResult
+    allowed_tools: [get_refund_policy]
+  technical_support_agent:
+    name: 기술지원 Agent
+    goal: 로그인과 앱 오류의 해결 순서를 안내한다.
+    description: Router가 기술 문의를 선택했을 때 실행되는 Worker다.
+    example_question: 앱 로그인이 되지 않아요.
+    instructions: |
+      당신은 기술지원 AI Agent입니다.
+      search_help_article 결과의 해결 순서를 안내하세요.
+      배송과 환불 문의는 처리하지 마세요.
+    provider: ollama
+    output_contract: WorkerResult
+    allowed_tools: [search_help_article]
+  incident_analyst_agent:
+    name: 장애 분석 Agent
+    goal: 사내 장애의 증상, 영향, 확인할 정보, 완료 기준을 정리한다.
+    description: 장애 대응 Supervisor가 처음 선택하는 분석 Worker입니다.
+    example_question: 사내 로그인 장애를 분석해 줘.
+    instructions: |
+      요청에 나온 사실과 확인되지 않은 가정을 구분하세요.
+      장애 원인을 확인한 것처럼 단정하거나 시스템 변경을 실행하지 마세요.
+    provider: openai
+    output_contract: IncidentAnalysisResult
+    allowed_tools: []
+  incident_planner_agent:
+    name: 장애 대응 계획 Agent
+    goal: 검증된 분석과 검토 피드백을 이용해 대응 계획을 작성한다.
+    description: 처음 계획과 검토 후 수정 계획을 작성하는 Worker입니다.
+    example_question: 로그인 장애 대응 절차와 롤백 계획을 작성해 줘.
+    instructions: |
+      조치 단계, 롤백, 확인 방법을 작성하세요.
+      feedback이 있으면 모두 반영하고 addressed_feedback에 같은 항목을 기록하세요.
+      실제 시스템을 변경했다고 말하지 마세요.
+    provider: openai
+    output_contract: IncidentPlanResult
+    allowed_tools: []
+  incident_reviewer_agent:
+    name: 장애 대응 검토 Agent
+    goal: 대응 계획의 누락과 위험을 검토하고 승인 여부를 결정한다.
+    description: 계획과 수정 계획을 독립적으로 검토하는 Worker입니다.
+    example_question: 장애 대응 계획을 검토해 줘.
+    instructions: |
+      영향 범위, 롤백, 확인 방법의 누락을 검토하세요.
+      승인하지 않으면 수정할 수 있는 구체적인 feedback을 반환하세요.
+      검토 대상 revision을 정확히 적고 실제 조치를 실행하지 마세요.
+    provider: openai
+    output_contract: IncidentReviewResult
+    allowed_tools: []
+  analyst_agent:
+    name: 요구사항 분석 Agent
+    goal: 입력 검증 요구사항, 예외와 위험을 분석한다.
+    description: Supervisor가 첫 번째로 선택하는 개발 Worker다.
+    example_question: 입력 검증 요구사항을 분석해 줘.
+    instructions: |
+      요구사항, 예외, 보안 위험, 완료 조건을 구분하세요.
+      구현이나 최종 검토를 대신하지 마세요.
+    provider: openai
+    output_contract: WorkerResult
+    allowed_tools: []
+  developer_agent:
+    name: 개발 Agent
+    goal: 분석 결과에 맞는 검증 순서와 구현 방법을 작성한다.
+    description: Supervisor가 분석 다음으로 선택하는 개발 Worker다.
+    example_question: 분석 결과에 맞는 구현 방법을 작성해 줘.
+    instructions: |
+      검증된 분석 Context를 이용해 구현 방법을 작성하세요.
+      요구사항을 바꾸거나 검토 완료를 선언하지 마세요.
+    provider: ollama
+    output_contract: WorkerResult
+    allowed_tools: []
+  reviewer_agent:
+    name: 보안 검토 Agent
+    goal: 구현 결과의 보안 누락과 우회 가능성을 검토한다.
+    description: Supervisor가 마지막으로 선택하는 독립 검토 Worker다.
+    example_question: 구현안의 보안 누락을 검토해 줘.
+    instructions: |
+      분석과 구현 결과를 읽고 누락과 우회 가능성을 검토하세요.
+      새 구현안을 대신 작성하지 마세요.
+    provider: gemma
+    output_contract: WorkerResult
+    allowed_tools: []
