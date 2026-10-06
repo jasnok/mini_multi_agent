@@ -5,6 +5,8 @@ from app.agents.internal_router_agent import INTERNAL_ROUTER_AGENT
 from app.agents.router_agent import ROUTER_AGENT
 from app.agents.supervisor_agent import SUPERVISOR_AGENT
 from app.agents.incident_supervisor_agent import INCIDENT_SUPERVISOR_AGENT
+from app.agents.moving_supervisor_agent import MOVING_SUPERVISOR_AGENT
+from app.agents.loader import DEFINITION_FILE
 
 AGENTS = {
     ROUTER_AGENT.agent_id: ROUTER_AGENT,
@@ -12,6 +14,9 @@ AGENTS = {
     SUPERVISOR_AGENT.agent_id: SUPERVISOR_AGENT,
     INCIDENT_SUPERVISOR_AGENT.agent_id: INCIDENT_SUPERVISOR_AGENT,
     **load_worker_agents(),
+    MOVING_SUPERVISOR_AGENT.agent_id: MOVING_SUPERVISOR_AGENT,
+    **load_worker_agents(DEFINITION_FILE.with_name("moving_workers.yaml")),
+    # **load_team1_agents(),
 }
 
 

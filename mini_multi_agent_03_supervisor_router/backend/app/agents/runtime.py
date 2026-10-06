@@ -26,12 +26,14 @@ def tool_arguments(tool_name: str, prompt: str) -> dict[str, object] | None:
     return None
 
 
-async def run_profile(profile: AgentProfile, prompt: str, schema, tracker=None) -> dict[str, object]:
+async def run_profile(profile: AgentProfile, prompt: str, schema, tracker=None, *, tool_inputs=None, tool_schemas=None) -> dict[str, object]:
     started = perf_counter()
     tool_results = {}
     try:
+        if tool_inputs is not None and set(tool_inputs) - profile.allowed_tools:
+            raise PermissionError("Agent에 허용되지 않은 Tool 인자가 전달되었습니다.")
         for tool_name in profile.allowed_tools:
-            arguments = tool_arguments(tool_name, prompt)
+            arguments = tool_inputs.get(tool_name) if tool_inputs is not None else tool_arguments(tool_name, prompt)
             if arguments is None:
                 raise ValueError(f"{tool_name} 호출에 필요한 정보가 사용자 요청에 없습니다.")
             if tracker:
@@ -39,6 +41,10 @@ async def run_profile(profile: AgentProfile, prompt: str, schema, tracker=None) 
             tool_results[tool_name] = await call_tool(
                 tool_name, arguments, profile.allowed_tools
             )
+            if tool_schemas and tool_name in tool_schemas:
+                tool_results[tool_name] = tool_schemas[tool_name].model_validate(
+                    tool_results[tool_name]
+                ).model_dump(mode="json")
             if tracker:
                 tracker.update(
                     profile.agent_id, "tool_completed", f"{tool_name} 완료",
@@ -75,7 +81,7 @@ async def run_profile(profile: AgentProfile, prompt: str, schema, tracker=None) 
         return {
             "status": "completed", "actor": profile.agent_id, **metadata,
             "tools": sorted(profile.allowed_tools), "tool_results": tool_results,
-            "result": result.model_dump(), "error": None,
+            "result": result.model_dump(mode="json"), "error": None,
         }
     except Exception as error:
         error_code = error.code if isinstance(error, ProviderExecutionError) else "agent_error"

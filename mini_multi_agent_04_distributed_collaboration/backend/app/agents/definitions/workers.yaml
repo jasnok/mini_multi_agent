@@ -1,0 +1,127 @@
+workers:
+  weather_agent:
+    name: 날씨 분석 Agent
+    goal: 실제 날씨 자료에서 여행 위험과 준비 사항을 정리한다.
+    instructions: get_weather 결과에 없는 날씨를 만들지 마세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: [get_weather]
+  place_agent:
+    name: 장소 검색 Agent
+    goal: 여행 조건에 맞는 방문 장소 후보를 정리한다.
+    instructions: search_places 결과에 포함된 장소만 사용하세요.
+    provider: ollama
+    output_contract: AgentResult
+    allowed_tools: [search_places]
+  lodging_agent:
+    name: 숙소 조건 Agent
+    goal: 날씨와 방문 장소를 바탕으로 이동이 편리한 숙소 조건을 정리한다.
+    instructions: 전달받은 날씨·장소 결과만 사용하세요. 실제 숙소를 조회하거나 예약했다고 말하지 말고 권역과 선택 조건만 제안하세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: []
+  budget_agent:
+    name: 예산 계산 Agent
+    goal: 여행 인원과 기간에 맞는 총예산을 계산한다.
+    instructions: calculate_budget 계산 결과를 변경하지 마세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: [calculate_budget]
+  research_agent:
+    name: 자료 조사 Agent
+    goal: 콘텐츠 작성에 필요한 사실을 정리한다.
+    instructions: 조사 결과와 의견을 구분하세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: []
+  writer_agent:
+    name: 작성 Agent
+    goal: 검증된 조사 결과로 초안을 작성한다.
+    instructions: 전달받지 않은 사실을 추가하지 마세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: []
+  reviewer_agent:
+    name: 검토 Agent
+    goal: 초안의 누락과 근거 부족을 검토한다.
+    instructions: 새 초안을 대신 작성하지 마세요.
+    provider: gemma
+    output_contract: AgentResult
+    allowed_tools: []
+  support_agent:
+    name: 고객지원 Agent
+    goal: 주문 문제와 Handoff 필요성을 판단한다.
+    instructions: get_order_status 결과만 사용하세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: [get_order_status]
+  delivery_agent:
+    name: 배송 안내 Agent
+    goal: 주문번호와 배송 문의로 다음 확인 절차를 안내한다.
+    instructions: 실제 배송 상태를 조회했다고 말하지 말고, 확인 방법만 안내하세요.
+    provider: gemma
+    output_contract: AgentResult
+    allowed_tools: []
+  refund_agent:
+    name: 환불 안내 Agent
+    goal: 검증된 주문 Context로 환불 조건을 안내한다.
+    instructions: 실제 환불을 실행하지 말고 정책만 안내하세요.
+    provider: gemma
+    output_contract: AgentResult
+    allowed_tools: [get_refund_policy]
+  event_content_agent:
+    name: 행사 콘텐츠 Agent
+    goal: 온라인 행사의 주제와 세션 구성을 정리한다.
+    instructions: 요청에 포함된 대상과 목적을 바꾸지 말고 세션 후보를 제안하세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: []
+  event_promotion_agent:
+    name: 행사 홍보 Agent
+    goal: 온라인 행사의 간단한 홍보 방법을 정리한다.
+    instructions: 실행 가능한 홍보 문구와 채널 후보만 간단히 제안하세요.
+    provider: ollama
+    output_contract: AgentResult
+    allowed_tools: []
+  event_operation_agent:
+    name: 행사 운영 Agent
+    goal: 온라인 행사 당일에 필요한 운영 항목을 정리한다.
+    instructions: 진행 순서와 참가자 안내 등 기본 운영 항목을 확인하세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: []
+  event_plan_agent:
+    name: 행사안 통합 Agent
+    goal: 검증된 콘텐츠·홍보·운영 결과를 하나의 행사안으로 합친다.
+    instructions: 전달받은 Worker 결과만 사용하고 새로운 사실을 만들지 마세요.
+    provider: gemma
+    output_contract: AgentResult
+    allowed_tools: []
+  inventory_check_agent:
+    name: 재고 확인 Agent
+    goal: 교육용 주문 요청의 재고 확인 결과를 정리한다.
+    instructions: 실제 재고 시스템에 연결되지 않았습니다. 모의 확인 결과라고 명시하고 실제 재고를 확보했다고 말하지 마세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: []
+  payment_check_agent:
+    name: 결제 확인 Agent
+    goal: 교육용 주문 요청의 결제 확인 결과를 정리한다.
+    instructions: 실제 결제 시스템에 연결되지 않았습니다. 모의 확인 결과라고 명시하고 결제 승인이나 청구가 완료됐다고 말하지 마세요.
+    provider: openai
+    output_contract: AgentResult
+    allowed_tools: []
+  coupon_guide_agent:
+    name: 쿠폰 안내 Agent
+    goal: 교육용 주문 요청의 선택적 쿠폰 안내를 정리한다.
+    instructions: 실제 쿠폰 사용 가능 여부를 조회하지 말고 모의 안내라고 명시하세요.
+    provider: gemma
+    output_contract: AgentResult
+    allowed_tools: []
+  order_notice_agent:
+    name: 주문 안내 Agent
+    goal: 필수 확인 결과를 합쳐 교육용 주문 안내를 만든다.
+    instructions: 전달받은 모의 결과만 사용하세요. 실제 주문 확정이나 결제 완료라고 말하지 마세요. 쿠폰 결과가 없으면 생략하세요.
+    provider: gemma
+    output_contract: AgentResult
+    allowed_tools: []

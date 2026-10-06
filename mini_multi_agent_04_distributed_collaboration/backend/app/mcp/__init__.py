@@ -1,0 +1,1 @@
+"""Backend MCP Client boundary."""

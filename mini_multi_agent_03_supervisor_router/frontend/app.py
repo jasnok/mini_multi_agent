@@ -4,6 +4,8 @@ import json
 import os
 import time
 from pathlib import Path
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import requests
 import streamlit as st
@@ -29,6 +31,7 @@ CODE_MESSAGE = "사용자 입력 길이를 검사하는 기능을 분석하고 �
 INCIDENT_MESSAGE = "3층 회의실 프로젝터에 화면이 나오지 않습니다. 안전한 점검 안내문을 만들고 검토해 주세요."
 
 LAB_CODE_PATHS = {
+    "10": ["backend/app/orchestration/moving_supervisor.py", "backend/app/schemas/moving.py", "backend/app/agents/definitions/moving_workers.yaml", "mcp_server/tools/moving_tools.py"],
     "01": ["backend/app/orchestration/engine.py · rule_router_agent()"],
     "02": ["backend/app/orchestration/engine.py · llm_router_flow()"],
     "03": ["backend/app/schemas/workflow.py · SupportRouteDecision"],
@@ -41,6 +44,7 @@ LAB_CODE_PATHS = {
 }
 
 LAB_BACKEND_ENDPOINTS = {
+    "10": [("POST", "/api/runs/moving-checklist"), ("POST", "/api/async-runs/moving-checklist"), ("GET", "/api/async-runs/{run_id}/snapshot")],
     "01": [("GET", "/api/rule-router")],
     "02": [("POST", "/api/async-runs/router"), ("GET", "/api/async-runs/{run_id}/snapshot")],
     "03": [("GET", "/api/routing-validation-cases"), ("POST", "/api/routing/validate")],
@@ -53,6 +57,7 @@ LAB_BACKEND_ENDPOINTS = {
 }
 
 LAB_FLOW_DISPATCH = {
+    "10": ("moving-checklist", "create_moving_run() → execute_moving_tracked() → moving_checklist_flow()"),
     "05": ("supervisor-loop", "create_async_run() → execute_tracked() → supervisor_loop()"),
     "07": ("supervisor-team", "create_async_run() → execute_tracked() → supervisor_loop()"),
     "08": ("internal-router", "create_async_run() → execute_internal_tracked() → run_internal_router_flow()"),
@@ -60,6 +65,7 @@ LAB_FLOW_DISPATCH = {
 }
 
 LAB_ANALYSIS_QUESTIONS = {
+    "10": ["이사 종류를 바꾸면 어떤 준비 항목이 달라지나요?", "Mock Tool의 항목이 빠지면 다음 Worker가 실행되나요?", "희망일이 임박하면 권장 준비일이 어떻게 표시되나요?"],
     "01": ["어떤 단어를 보고 담당 Agent를 선택했나요?"],
     "02": ["Router가 선택한 Worker 하나만 실행되었나요?"],
     "03": ["목록에 없는 Agent 이름은 왜 차단되나요?"],
@@ -115,8 +121,12 @@ def run_with_polling(flow_name: str, payload: dict, max_wait_seconds: int = 900)
             f"단계: {state.get('current_stage')} · {state.get('message')}"
         )
         with event_area.container():
-            st.write("실시간 실행 이력")
-            st.dataframe(snapshot["events"], use_container_width=True)
+            if flow_name == "moving-checklist":
+                with st.expander("실시간 실행 이력", expanded=False):
+                    st.dataframe(snapshot["events"], use_container_width=True)
+            else:
+                st.write("실시간 실행 이력")
+                st.dataframe(snapshot["events"], use_container_width=True)
         if state["status"] in {"completed", "failed"}:
             return state
         time.sleep(1)
@@ -153,7 +163,7 @@ def show_header(lab_id: str, labs: dict) -> None:
             st.write(f"- {question}")
 
 
-def show_trace(result: dict) -> None:
+def show_trace(result: dict, *, nested: bool = False) -> None:
     status = result.get("status", "unknown")
     if status == "completed":
         st.success(f"실행 상태: {status}")
@@ -166,7 +176,12 @@ def show_trace(result: dict) -> None:
         for event in result["trace"]:
             actor = event.get("actor", "unknown")
             action = event.get("action", "event")
-            with st.expander(f"{event.get('step', '?')}. {actor} · {action}", expanded=True):
+            title = f"{event.get('step', '?')}. {actor} · {action}"
+            # Streamlit 1.41에서도 바깥 expander 안에 실행 기록을 표시할 수 있게 한다.
+            panel = st.container(border=True) if nested else st.expander(title, expanded=True)
+            with panel:
+                if nested:
+                    st.write(title)
                 st.json(event)
 
 
@@ -300,6 +315,253 @@ def run_supervisor(flow_name: str, state_key: str, button_label: str) -> None:
         st.json(result["state"])
 
 
+def show_moving_checklist() -> None:
+    from secrets import token_urlsafe
+    session_key = st.session_state.setdefault("moving-session-key", token_urlsafe(32))
+    updated_notes = st.session_state.pop("moving-updated-notes", None)
+    if updated_notes is not None:
+        st.session_state["moving-notes-input"] = updated_notes
+    restore = st.session_state.pop("moving-restore-progress", None)
+    if restore:
+        for item in (st.session_state.get("moving-result") or {}).get("checklist", {}).get("items", []):
+            base = f"{restore['prefix']}-{item['item_id']}"
+            complete = item["item_id"] in restore["ids"]
+            st.session_state[base] = complete
+            value = "완료" if complete else "준비 전"
+            st.session_state[base + "-status"] = value
+            for location in ("priority", "all"):
+                st.session_state[f"{base}-status-{location}"] = value
+                st.session_state[f"{base}-status-check-{location}"] = complete
+    st.write("출발지·도착지·희망일·이사 종류를 선택하면 이사 전·당일·후 체크리스트를 만듭니다.")
+    st.caption("상황을 적으면 필요한 준비만 골라서 보여드립니다. 모르는 내용은 확인할 일로 남깁니다.")
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
+    labels = {"general": "일반이사", "semi_packing": "반포장이사", "full_packing": "포장이사"}
+    with st.form("moving-form"):
+        left, right = st.columns(2)
+        origin = left.text_input("출발지", "서울 관악구 관악푸르지오 2차 아파트")
+        destination = right.text_input("도착지", "서울 강북구 수유동 벽산아파트")
+        moving_date = st.date_input("이사 희망일", max(date(2026, 10, 9), today), min_value=today)
+        moving_type = st.radio("이사 종류", list(labels), index=0, format_func=lambda value: labels[value], horizontal=True)
+        st.caption("일반이사: 직접 포장 범위 확인 · 반포장이사: 사용자·업체 분담 확인 · 포장이사: 업체 포장·정리 범위 확인. 실제 범위는 업체와 협의해야 합니다.")
+        additional_notes = st.text_area(
+            "내 이사 상황 (선택)",
+            value="가져갈 큰 물건은 퀸사이즈 침대, 2000×600 사이즈 책상, 32인치 스탠바이미 모니터, 화장대입니다. 냉장고와 세탁기는 판매할 예정입니다. 가스레인지는 가스 전출 신청 후 전문 작업자의 가스 연결 분리·안전 조치가 완료되면 판매할 예정입니다. 에어컨은 전문 작업자에게 철거를 맡긴 뒤 폐기할 예정이고 인터넷은 새집으로 이전하려고 합니다. 양쪽 아파트의 엘리베이터 사용 시간과 이사 차량 주차 공간은 아직 확인하지 못했습니다. 자녀와 반려동물은 없습니다. 가스 전출·전입 준비와 폐기물 처리를 먼저 확인하고 싶습니다.",
+            max_chars=2000, height=110,
+            key="moving-notes-input",
+            help="예시를 본인 상황에 맞게 수정하거나 지워도 됩니다. 보유 가전, 처분할 물건, 직접 할 일, 아직 확인하지 못한 사항을 적어 주세요. 비밀번호·계좌번호 등 민감한 정보는 입력하지 마세요.",
+        )
+        submitted = st.form_submit_button("이사 체크리스트 만들기", type="primary", use_container_width=True)
+    answer_labels = {"building_access": "엘리베이터·주차", "internet": "인터넷", "gas": "가스", "waste_booking": "폐기", "school": "자녀", "care": "돌봄"}
+    if submitted:
+        st.session_state.pop("moving-result", None)
+        if len(origin.strip()) < 2 or len(destination.strip()) < 2:
+            st.error("출발지와 도착지를 입력하세요.")
+        else:
+            with st.spinner("참고사항 정리와 업무별 담당 에이전트가 체크리스트를 만들고 있습니다..."):
+                try:
+                    state = run_with_polling("moving-checklist", {"origin": origin, "destination": destination,
+                                            "moving_date": moving_date.isoformat(), "moving_type": moving_type,
+                                            "additional_notes": additional_notes.strip(), "session_key": session_key})
+                    st.session_state["moving-result"] = state.get("result")
+                    if state.get("result") is None:
+                        st.error(state.get("error") or "실행에 실패했습니다.")
+                    else:
+                        st.rerun()
+                except requests.HTTPError as error:
+                    st.error(f"API 실행 실패: {error}")
+                    if error.response is not None:
+                        with st.expander("입력·서버 오류 내용"):
+                            st.write(error.response.text)
+                except (requests.RequestException, TimeoutError) as error:
+                    st.error(f"API 실행 실패: {error}")
+    result = st.session_state.get("moving-result")
+    if not result:
+        return
+    reuse = result.get("state", {}).get("reuse", {})
+    if reuse.get("reused_agents"):
+        st.caption(f"검증된 담당 결과 {len(reuse['reused_agents'])}개 재사용 · 결과 버전 {reuse['result_version']}")
+    if result["status"] == "completed":
+        checklist = result["checklist"]
+        conditions = checklist["conditions"]
+        def regenerate_notes(text):
+            if len(text) > 2000:
+                st.error("수정 내용과 답변의 합계는 2,000자 이내로 입력하세요.")
+                return
+            payload = {**conditions, "additional_notes": text, "item_plans": [], "session_key": session_key}
+            try:
+                with st.spinner("수정한 내용을 AI가 다시 확인하고 있습니다..."):
+                    refreshed = run_with_polling("moving-checklist", payload)
+                if refreshed.get("result"):
+                    st.session_state["moving-result"] = refreshed["result"]
+                    st.session_state["moving-updated-notes"] = text
+                    st.rerun()
+                else:
+                    st.error(refreshed.get("error") or "수정 내용을 반영하지 못했습니다.")
+            except (requests.RequestException, TimeoutError) as error:
+                st.error(f"수정 내용 전달 실패: {error}")
+        st.success(f"{conditions['moving_date']} · {labels[conditions['moving_type']]} 체크리스트 생성 완료")
+        st.write(f"{conditions['origin']} → {conditions['destination']}")
+        elapsed = result.get("state", {}).get("metrics", {}).get("elapsed_ms")
+        if elapsed is not None:
+            st.caption(f"생성 처리시간 {elapsed / 1000:.1f}초 · {'독립 업무 병렬 설정' if conditions.get('parallel_workers') else '순차 실행 설정'}")
+        if checklist.get("notes_summary"):
+            with st.expander("자세히 보기 · 내 상황 요약", expanded=False):
+                notes = checklist["notes_summary"]
+                categories = {"keep": "가져갈 물품", "sell": "판매", "dispose": "폐기", "service": "서비스 작업", "constraint": "제약·미확인", "household": "가족 상황", "priority": "우선 확인 희망", "other": "기타"}
+                rows = [{"분류": categories[fact["category"]], "사용자 상황": fact["detail"]}
+                        for fact in notes["facts"]]
+                with st.form(f"moving-summary-edit-{result['run_id']}"):
+                    import pandas as pd
+                    frame = pd.DataFrame(rows, columns=["분류", "사용자 상황"])
+                    edited = st.data_editor(frame, num_rows="dynamic", hide_index=True, use_container_width=True,
+                        column_config={"분류": st.column_config.SelectboxColumn(options=list(categories.values())),
+                                       "사용자 상황": st.column_config.TextColumn(required=True)})
+                    st.caption("행을 수정·추가·삭제한 뒤 반영하세요. 수정한 표를 새로운 사용자 상황으로 보내 전체 준비 목록을 다시 검증합니다.")
+                    apply_summary = st.form_submit_button("수정한 상황 반영하기")
+                if apply_summary:
+                    text = "\n".join(str(row.get("사용자 상황") or "").strip() for row in edited.fillna("").to_dict("records") if str(row.get("사용자 상황") or "").strip())
+                    regenerate_notes(text)
+        responsibility = {"user": "사용자", "provider": "업체", "confirm_with_provider": "업체와 확인"}
+        visible_items = [item for item in checklist["items"] if item.get("applicability") != "not_applicable"]
+        hidden_count = len(checklist["items"]) - len(visible_items)
+        checklist_key = f"moving-check-{reuse.get('input_hash', result['run_id'])}"
+        def status_key(item):
+            return f"{checklist_key}-{item['item_id']}-status"
+        def sync_status(widget, item):
+            checked = bool(st.session_state[widget])
+            st.session_state[status_key(item)] = "완료" if checked else "준비 전"
+            st.session_state[f"{checklist_key}-{item['item_id']}"] = checked
+            for location in ("priority", "all"):
+                st.session_state[f"{status_key(item)}-check-{location}"] = checked
+        def checklist_sentence(item):
+            import re
+            parts = re.split(r"(?<=[.!?])\s+|\n+", item["action"].strip())
+            return "; ".join(part.rstrip(".!? ") for part in parts if part.strip()) + "."
+        def status_control(item, location):
+            key = f"{status_key(item)}-check-{location}"
+            if key not in st.session_state:
+                st.session_state[key] = bool(st.session_state.get(f"{checklist_key}-{item['item_id']}", False))
+            st.checkbox(checklist_sentence(item), key=key,
+                         on_change=sync_status, args=(key, item))
+        done = sum(bool(st.session_state.get(f"{checklist_key}-{item['item_id']}", False))
+                   for item in visible_items)
+        st.subheader("전체 준비 목록")
+        st.caption(f"완료 {done} / {len(visible_items)}개 · 해당 없는 항목 {hidden_count}개 제외")
+        st.progress(done / len(visible_items) if visible_items else 1.0)
+        st.caption("체크 표시는 같은 입력의 현재 브라우저 세션에서 유지됩니다. 입력을 바꾸면 새 목록의 완료 표시를 다시 확인하세요. 예약·신청 완료를 외부 시스템에서 확인하지 않습니다.")
+        st.caption("재사용 결과는 브라우저별 임시 키로 구분해 서버 Redis에 최대 1시간 보관합니다. 로그인 기반 저장 서비스는 아닙니다.")
+        if checklist.get("unresolved_questions"):
+            with st.expander("추가로 확인할 사항", expanded=False):
+                with st.form(f"moving-question-replies-{result['run_id']}"):
+                    replies = []
+                    for index, question in enumerate(checklist["unresolved_questions"]):
+                        label = question.split(":", 1)[-1].strip()
+                        answer = st.text_input(label, max_chars=500, key=f"moving-reply-{result['run_id']}-{index}")
+                        if answer.strip(): replies.append(f"확인 사항: {label}\n사용자 답변: {answer.strip()}")
+                    send_replies = st.form_submit_button("답변을 AI에 보내고 목록 갱신")
+                if send_replies:
+                    if not replies:
+                        st.warning("확인한 답변을 하나 이상 입력하세요.")
+                    else:
+                        regenerate_notes(conditions.get("additional_notes", "") + "\n" + "\n".join(replies))
+        with st.expander("공식 안내 바로가기", expanded=False):
+            st.caption("개인 주소·참고사항을 외부에 전송하지 않습니다. 접속 확인은 내용의 최신성이나 신청 완료를 보장하지 않습니다.")
+            if st.button("공식 안내 사이트 접속 확인"):
+                try:
+                    response = requests.get(f"{API}/api/moving-references/check", timeout=10)
+                    response.raise_for_status()
+                    st.session_state["moving-reference-status"] = {item["source_id"]: item for item in response.json()}
+                except requests.RequestException:
+                    st.warning("공식 안내 접속 확인에 실패했습니다. 링크에서 직접 확인하세요.")
+            for source in checklist.get("official_references", []):
+                st.link_button(source["title"], source["url"])
+                st.caption(source["description"])
+                checked = st.session_state.get("moving-reference-status", {}).get(source["source_id"])
+                if checked:
+                    st.caption(f"{'접속 응답 확인' if checked['status'] == 'reachable' else '자동 접속 확인 불가 · 직접 확인 필요'} · 조회 시각 {checked['checked_at']}")
+        item_titles = {item["item_id"]: item["title"] for item in checklist["items"]}
+        for phase, title in [("before", "이사 전"), ("moving_day", "이사 당일"), ("after", "이사 후")]:
+            phase_items = [item for item in visible_items if item["phase"] == phase]
+            if not phase_items:
+                continue
+            phase_done = sum(bool(st.session_state.get(f"{checklist_key}-{item['item_id']}", False)) for item in phase_items)
+            with st.expander(f"{title} · 완료 {phase_done}/{len(phase_items)}개", expanded=False):
+                for item in phase_items:
+                    normal_key = f"{checklist_key}-{item['item_id']}"
+                    with st.container(border=True):
+                        status_control(item, "all")
+                        offset = item["days_offset"]
+                        day_label = f"D{offset}" if offset < 0 else ("D-DAY" if offset == 0 else f"D+{offset}")
+                        color = "blue" if offset < 0 else ("orange" if offset == 0 else "green")
+                        st.markdown(f":{color}-background[**{day_label}**] · {item['recommended_date']} · 담당: {responsibility[item['responsibility']]}")
+                        if item.get("depends_on"):
+                            st.caption("먼저 준비·완료할 일: " + " · ".join(item_titles[key] for key in item["depends_on"]))
+                        if item.get("applicability", "needs_confirmation") == "needs_confirmation":
+                            st.caption(f"해당 여부 확인: {item['condition']}")
+                        if item["item_id"] in answer_labels:
+                            with st.form(f"moving-card-answer-{item['item_id']}"):
+                                answer = st.text_input("확인한 내용", value=conditions.get("clarifications", {}).get(item["item_id"], ""), max_chars=500)
+                                update = st.form_submit_button("이 내용으로 준비 목록 갱신")
+                            if update:
+                                payload = dict(conditions)
+                                payload["session_key"] = session_key
+                                payload["clarifications"] = dict(conditions.get("clarifications", {}))
+                                if answer.strip(): payload["clarifications"][item["item_id"]] = answer.strip()
+                                else: payload["clarifications"].pop(item["item_id"], None)
+                                try:
+                                    refreshed = run_with_polling("moving-checklist", payload)
+                                    if refreshed.get("result"):
+                                        st.session_state["moving-result"] = refreshed["result"]
+                                        st.rerun()
+                                except (requests.RequestException, TimeoutError) as error:
+                                    st.error(f"목록 갱신 실패: {error}")
+        exported_graph = [{**task, "status": "user_done" if st.session_state.get(f"{checklist_key}-{task['task_id']}") else
+                           ("in_progress" if st.session_state.get(f"{checklist_key}-{task['task_id']}-status") == "진행 중" else task["status"])}
+                          for task in checklist.get("task_graph", [])]
+        left, right = st.columns(2)
+        with left:
+            if st.button("완료 표시 임시 저장"):
+                try:
+                    api_post("/api/moving-session/progress", {"session_key": session_key, "input_hash": reuse["input_hash"],
+                             "completed_ids": [item["item_id"] for item in visible_items if st.session_state.get(f"{checklist_key}-{item['item_id']}")]})
+                    st.success("완료 표시를 최대 1시간 임시 저장했습니다.")
+                except requests.RequestException:
+                    st.warning("임시 저장에 실패했습니다. 저장 기간이 지났다면 다시 생성하세요.")
+        with right:
+            if st.button("저장한 완료 표시 불러오기"):
+                try:
+                    saved = api_post("/api/moving-session/progress/read", {"session_key": session_key})
+                    if saved.get("input_hash") != reuse["input_hash"]:
+                        st.warning("현재 입력과 일치하는 저장 기록이 없습니다.")
+                    else:
+                        st.session_state["moving-restore-progress"] = {"prefix": checklist_key, "ids": saved["completed_ids"]}
+                        st.rerun()
+                except requests.RequestException:
+                    st.warning("완료 표시를 불러오지 못했습니다.")
+        if st.button("내 임시 결과·실행 기록 삭제"):
+            try:
+                api_post("/api/moving-session/delete", {"session_key": session_key})
+                for key in list(st.session_state):
+                    if key.startswith("moving-"):
+                        del st.session_state[key]
+                st.rerun()
+            except requests.RequestException:
+                st.error("서버 삭제에 실패했습니다. 다시 시도하세요.")
+        st.download_button("체크리스트 데이터 다운로드", json.dumps({**checklist, "items": visible_items, "task_graph": exported_graph}, ensure_ascii=False, indent=2),
+                           file_name="moving_checklist.json", mime="application/json")
+    elif result["status"] == "needs_information":
+        st.warning(result["reason_message"])
+        st.write(result["questions"])
+    else:
+        st.error(f"생성 중단: {result.get('reason_message', result['reason'])}")
+        if result.get("error"):
+            st.write(result["error"])
+    with st.expander("자세히 보기 · 학습용 실행 기록과 출력 계약", expanded=False):
+        st.caption(f"실행 번호: {result['run_id']} · 이번 실행 모델 호출: {result['llm_calls']}회")
+        show_trace(result, nested=True)
+        st.json(result["state"])
+
+
 st.set_page_config(page_title="Mini Multi-Agent 03", page_icon="🧭", layout="wide")
 st.sidebar.title("🧭 Mini Multi-Agent 03")
 MENU = [
@@ -307,6 +569,7 @@ MENU = [
     "03 · Routing 계약", "04 · Supervisor 결정", "05 · Supervisor–Worker Loop",
     "06 · Router vs Supervisor", "07 · Supervisor와 세 Worker 협업",
     "08 · 다른 업무에 Router 적용", "09 · 검토 피드백으로 계획 수정",
+    "10 · 이사 체크리스트",
     "Agent Registry · YAML", "MCP Tool", "Provider 상태",
 ]
 menu = st.sidebar.radio("학습 메뉴", MENU)
@@ -330,7 +593,7 @@ if menu == "과정 안내":
     4. 완료된 작업을 보고 다음 Agent를 선택합니다.
     5. 선택을 반복하고 모든 작업이 끝나면 종료합니다.
     """)
-    for lab_id, lab in labs.items():
+    for lab_id, lab in sorted(labs.items()):
         with st.expander(f"{lab_id} · {lab['title']} — {lab['question']}"):
             st.success(lab["answer_summary"])
             for detail in lab["answer_details"]:
@@ -395,6 +658,8 @@ else:
         run_supervisor("supervisor-team", "team-result", "Supervisor와 세 Worker 실행")
     elif lab_id == "08":
         show_internal_router()
+    elif lab_id == "10":
+        show_moving_checklist()
     else:
         st.caption("작은 예제: 회의실 프로젝터 화면이 나오지 않을 때의 점검 안내문을 만듭니다. 장비 조작은 실행하지 않습니다.")
         st.subheader("검토 결과에 따른 실행 흐름")

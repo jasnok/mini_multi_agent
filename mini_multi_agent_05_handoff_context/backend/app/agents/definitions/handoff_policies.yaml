@@ -1,0 +1,37 @@
+handoff_routes:
+  weather_to_itinerary:
+    from_agent: weather_agent
+    to_agent: itinerary_agent
+    required_context: [destination, days, weather_summary]
+    optional_context: [weather_cautions, transport]
+    max_hops: 3
+  it_triage_to_account_support:
+    from_agent: it_triage_agent
+    to_agent: account_support_agent
+    required_context: [employee_id, system_name, issue]
+    optional_context: []
+    max_hops: 1
+  router_to_account:
+    from_agent: support_router
+    to_agent: account_support_agent
+    required_context: [employee_id, system_name, issue]
+    optional_context: []
+    max_hops: 1
+  router_to_device:
+    from_agent: support_router
+    to_agent: device_support_agent
+    required_context: [employee_id, issue]
+    optional_context: []
+    max_hops: 1
+  router_to_access:
+    from_agent: support_router
+    to_agent: access_support_agent
+    required_context: [employee_id, system_name, issue]
+    optional_context: []
+    max_hops: 1
+  support_to_refund:
+    from_agent: customer_support_agent
+    to_agent: refund_agent
+    required_context: [order_id, issue]
+    optional_context: []
+    max_hops: 1

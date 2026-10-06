@@ -1,0 +1,22 @@
+teams:
+  travel_collaboration_team:
+    parallel_workers: [weather_agent, place_agent, budget_agent]
+    required_workers: [weather_agent, budget_agent]
+    optional_workers: [place_agent]
+    aggregator: itinerary_agent
+    timeout_seconds: 120
+    failure_policy: required_optional
+  event_collaboration_team:
+    parallel_workers: [event_content_agent, event_promotion_agent, event_operation_agent]
+    required_workers: [event_content_agent, event_operation_agent]
+    optional_workers: [event_promotion_agent]
+    aggregator: event_plan_agent
+    timeout_seconds: 120
+    failure_policy: required_optional
+  order_confirmation_team:
+    parallel_workers: [inventory_check_agent, payment_check_agent, coupon_guide_agent]
+    required_workers: [inventory_check_agent, payment_check_agent]
+    optional_workers: [coupon_guide_agent]
+    aggregator: order_notice_agent
+    timeout_seconds: 120
+    failure_policy: required_optional

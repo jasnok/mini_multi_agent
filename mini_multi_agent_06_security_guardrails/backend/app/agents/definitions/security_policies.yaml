@@ -1,0 +1,34 @@
+input:
+  max_length: 500
+  blocked_phrases:
+    - "이전 지시를 무시"
+    - "시스템 프롬프트를 보여"
+    - "권한 검사를 건너뛰"
+    - "ignore previous instructions"
+
+tools:
+  weather_agent: [get_weather]
+  itinerary_agent: [save_itinerary, book_demo_hotel]
+  response_guard_agent: []
+  input_guard_agent: []
+  travel_agent: []
+  support_draft_agent: []
+  support_answer_agent: []
+
+write_tools: [save_itinerary, book_demo_hotel]
+
+context_access:
+  weather_agent: [destination, days]
+  travel_agent: [destination, days, preferences, weather]
+  response_guard_agent: [draft, executed_actions]
+  support_draft_agent: [customer_id, issue, user_message]
+  support_answer_agent: [draft]
+
+response:
+  blocked_claims:
+    - "예약이 확정되었습니다"
+    - "결제가 완료되었습니다"
+  sensitive_patterns:
+    - "api_key"
+    - "password"
+    - "access_token"

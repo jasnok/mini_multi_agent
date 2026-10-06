@@ -10,6 +10,11 @@ from app.mcp.client import list_tools
 from app.observability.tracker import RunTracker, snapshot
 from app.orchestration.internal_flow import execute_internal_tracked, run_internal_router_flow
 from app.orchestration.incident_plan import execute_incident_tracked, incident_plan_flow
+from app.orchestration.moving_supervisor import moving_checklist_flow, execute_moving_tracked, MAX_LLM_CALLS, PLAN
+from app.schemas.moving import MovingRequest, MovingSessionRequest, MovingProgressRequest, MovingModelProbeRequest
+from app.orchestration.moving_reuse import save_progress, load_progress, delete_session
+from app.services.moving_references import check_references
+from app.services.moving_model_probe import probe_worker
 
 
 router = APIRouter(prefix="/api", tags=["Supervisor and Router"])
@@ -47,7 +52,7 @@ async def providers():
 
 @router.get("/agents")
 def agents():
-    return {key: {"name": value.name, "goal": value.goal, "description": value.description, "provider": value.provider, "output_contract": value.output_contract, "allowed_tools": sorted(value.allowed_tools), "defined_in": "python" if key in {"router_agent", "internal_router_agent", "supervisor_agent"} else "yaml"} for key, value in AGENTS.items()}
+    return {key: {"name": value.name, "goal": value.goal, "description": value.description, "provider": value.provider, "output_contract": value.output_contract, "allowed_tools": sorted(value.allowed_tools), "defined_in": "python" if key in {"router_agent", "internal_router_agent", "supervisor_agent", "incident_supervisor_agent", "moving_supervisor_agent"} else "yaml"} for key, value in AGENTS.items()}
 
 
 @router.get("/mcp-status")
@@ -87,6 +92,55 @@ async def run_internal_router(request: MessageRequest):
 @router.post("/runs/incident-plan")
 async def run_incident_plan(request: IncidentPlanRequest):
     return await incident_plan_flow(request)
+
+
+@router.post("/runs/moving-checklist", tags=["Lab 10 · 이사 체크리스트"])
+async def run_moving_checklist(request: MovingRequest) -> dict[str, object]:
+    return await moving_checklist_flow(request)
+
+
+@router.post("/moving-plan", tags=["Lab 10 · 이사 체크리스트"])
+async def moving_plan(request: MovingRequest):
+    return await moving_checklist_flow(request, plan_only=True)
+
+
+@router.post("/async-runs/moving-checklist", tags=["Lab 10 · 이사 체크리스트"])
+async def create_moving_run(request: MovingRequest, background_tasks: BackgroundTasks) -> dict[str, object]:
+    run_id = f"run-{uuid4().hex[:12]}"
+    RunTracker(run_id, MAX_LLM_CALLS + len(PLAN) + 1).update("orchestrator", "queued", "이사 체크리스트 실행이 등록되었습니다.")
+    background_tasks.add_task(execute_moving_tracked, run_id, request)
+    return {"run_id": run_id, "status": "queued"}
+
+
+@router.post("/moving-session/progress")
+def moving_progress(request: MovingProgressRequest):
+    try:
+        return save_progress(request.session_key, request.input_hash, request.completed_ids)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/moving-session/progress/read")
+def moving_progress_read(request: MovingSessionRequest):
+    return load_progress(request.session_key)
+
+
+@router.post("/moving-session/delete")
+def moving_session_delete(request: MovingSessionRequest):
+    return delete_session(request.session_key)
+
+
+@router.get("/moving-references/check")
+async def moving_references_check():
+    return await check_references(["gwanak_waste", "gangbuk", "address"])
+
+
+@router.post("/moving-model/probe")
+async def moving_model_probe(request: MovingModelProbeRequest):
+    try:
+        return await probe_worker(request)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @router.post("/async-runs/{flow_name}")

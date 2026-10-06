@@ -1,5 +1,16 @@
 # Mini Multi-Agent 03 · Supervisor and Router
 
+## Lab 10 · 이사 체크리스트 과제
+
+Streamlit 사이드바 **10 · 이사 체크리스트**에서 기본 이사 정보와 추가 참고사항을 입력합니다. Supervisor가 참고사항 정리와 업무 배정을 한 번에 처리하고, 물품·포장 / 판매·폐기 / 생활 서비스 / 주거·당일 담당 결과를 최종 검토합니다. 정상 모델 호출 6회, 전체 Worker 수정 2회와 재검토를 포함해 최대 9회 및 Mock MCP Tool 1회를 사용합니다. Python이 계약·선행조건·날짜를 관리하며 예약·견적·SH 퇴거는 포함하지 않습니다.
+
+- 화면: http://localhost:8501/
+- Swagger: http://127.0.0.1:8000/docs → POST /api/runs/moving-checklist
+- 비동기: POST /api/async-runs/moving-checklist → 기존 snapshot URL 조회
+- 제출 설명·테스트·공유 방법: [이사 체크리스트 제출 문서](docs/moving_checklist_submission.md)
+
+MCP에 새 Tool을 반영하려면 서버를 재시작합니다. 화면은 프로젝트 루트에서 `.\.venv\Scripts\python.exe -m streamlit run frontend/app.py --server.address 0.0.0.0 --server.port 8501`로 실행합니다. 기존 아래 설명의 8530 대신 이번 과제는 8501을 사용합니다.
+
 Rule Router, 실제 LLM Router, Supervisor State와 제한된 Supervisor–Worker Loop를
 왼쪽 메뉴에서 단계적으로 실행하는 초보자용 미니 프로젝트입니다.
 
@@ -364,6 +375,22 @@ Supervisor Loop에서 Python이 다음 조건을 최종 통제합니다.
 - Provider, Model, 지연 시간, 결과와 오류를 Trace에 보존합니다.
 - Gemini `429 RESOURCE_EXHAUSTED`는 `quota_exhausted`와 재시도 가능 시간으로 정규화하고,
   긴 Provider 원문이나 자동 Provider 대체를 사용하지 않습니다.
+
+## 이사 체크리스트 발전 기능
+
+10번 메뉴에서 초기 Supervisor가 참고사항의 물품을 원문 근거와 함께 구조화합니다. 생성 후 `참고사항에서 추출한 물품을 편집 표에 채우기`를 눌러 확인·수정하고 다시 생성할 수 있습니다. 확인 답변은 관련 Worker만 갱신합니다. 정상 최초 생성 6회·동일 입력 재사용 0회·각 실행 최대 9회 제한을 유지합니다.
+
+고급 실행 설정에서 포장·주거 두 담당자 병렬 실행과 Worker별 OpenAI/Gemini/Gemma/Ollama 선택이 가능합니다. 기본은 순차·모두 OpenAI입니다. 모델 분산은 사용자 선택이며 자동 Provider 대체는 하지 않습니다. 모델 점검은 선택한 담당자 계약을 추가 1회 호출하는 별도 기능입니다.
+
+완료 표시를 브라우저별 Redis 세션에 최대 1시간 저장·불러오기·삭제할 수 있습니다. 로그인 기반 계정 저장은 아니며 브라우저 세션이 사라지면 임시 키도 사라집니다. 공식 안내는 고정된 관악구·강북구·정부24 링크 및 읽기 전용 접속 확인입니다. 예약·신고·결제는 수행하지 않습니다.
+
+- `POST /api/moving-session/progress`: 완료 표시 저장
+- `POST /api/moving-session/progress/read`: 완료 표시 조회
+- `POST /api/moving-session/delete`: 해당 세션 임시 결과·저장 완료 표시·최근 실행 기록 삭제
+- `POST /api/moving-model/probe`: 선택 모델 1회 계약 점검 (원래 목록 변경 없음)
+- `GET /api/moving-references/check`: 허용된 공식 안내 주소 접속 확인
+
+상세 결과와 검증 범위는 `docs/moving_checklist_submission.md`에 기록합니다. 과제용 Run ID 조회는 인증되지 않으므로 상용 공개 배포 전 로그인·실행 소유권 검증·HTTPS가 필요합니다.
 
 ## 완료 기준
 

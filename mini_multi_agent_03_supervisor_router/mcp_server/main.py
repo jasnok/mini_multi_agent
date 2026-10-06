@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from mcp_server.core.config import MCP_HOST, MCP_PORT
+from mcp_server.tools.moving_tools import get_moving_checklist_template
 from mcp_server.tools.support_tools import (
     get_order_status,
     get_refund_policy,
@@ -30,7 +31,7 @@ READ_ONLY = ToolAnnotations(
     openWorldHint=False,
 )
 
-for tool in (get_order_status, get_refund_policy, search_help_article):
+for tool in (get_order_status, get_refund_policy, search_help_article, get_moving_checklist_template):
     mcp.tool(annotations=READ_ONLY)(tool)
 
 if __name__ == "__main__":

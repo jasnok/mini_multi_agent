@@ -38,13 +38,19 @@ async def safe_agent(agent_id: str, prompt: str, schema, tracker=None) -> dict[s
 
 
 async def llm_router_flow(request: MessageRequest, tracker=None) -> dict[str, object]:
+
+
     """LLM Router는 선택만 하고 실제 고객지원 업무는 선택된 Worker가 수행합니다."""
     route_prompt = f"""당신은 router_agent입니다. 답변을 직접 작성하지 마세요.
 배송 상태는 delivery_agent, 환불·취소는 refund_agent, 로그인·앱 오류는 technical_support_agent를 선택하세요.
 판단할 수 없으면 request_information과 필요한 정보를 반환하세요.
 요청: {request.message}
 SupportRouteDecision 계약으로 반환하세요."""
+
+    
     route = await safe_agent("router_agent", route_prompt, SupportRouteDecision, tracker)
+
+
     trace = [{"step": 1, "actor": "router_agent", "action": "route", "status": route["status"]}]
     if route["result"] is None:
         return {"run_id": f"run-{uuid4().hex[:12]}", "status": "failed", "route": route, "worker": None, "trace": trace}
@@ -54,7 +60,11 @@ SupportRouteDecision 계약으로 반환하세요."""
         return {"run_id": f"run-{uuid4().hex[:12]}", "status": "needs_information", "route": route, "worker": None, "trace": trace}
     profile = get_agent(selected)
     worker_prompt = f"당신은 {selected}입니다. Goal: {profile.goal}\nInstructions: {profile.instructions}\n요청: {request.message}\nWorkerResult 계약으로 반환하고 agent_id는 {selected}로 작성하세요."
+
+
     worker = await safe_agent(selected, worker_prompt, WorkerResult, tracker)
+
+
     trace.append({"step": 2, "actor": selected, "action": "execute", "status": worker["status"]})
     return {"run_id": f"run-{uuid4().hex[:12]}", "status": worker["status"], "route": route, "worker": worker, "trace": trace}
 
